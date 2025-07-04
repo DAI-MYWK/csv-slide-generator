@@ -71,6 +71,8 @@ export function DataAnalysis({ csvData, onAnalysisComplete }: DataAnalysisProps)
       avgCPA: 0,
       campaignBreakdown: [],
       timeSeriesData: [],
+      monthlySummary: {},
+      momComparison: {},
     }
 
     // キャンペーンデータの集計
@@ -102,20 +104,43 @@ export function DataAnalysis({ csvData, onAnalysisComplete }: DataAnalysisProps)
     // 日次データの処理
     if (csvData.dailyData) {
       csvData.dailyData.forEach((row: any) => {
-        const date = row["期間：日単位"]
+        const dateStr = row["期間：日単位"]
         const impressions = Number.parseInt(row["表示回数"]?.replace(/,/g, "") || "0")
         const clicks = Number.parseInt(row["クリック数"]?.replace(/,/g, "") || "0")
         const applications = Number.parseInt(row["応募数"]?.replace(/,/g, "") || "0")
+        const cost = Number.parseInt(row["費用"]?.replace(/[¥,]/g, "") || "0")
 
         stats.timeSeriesData.push({
-          date,
+          date: dateStr,
           impressions,
           clicks,
           applications,
           ctr: Number.parseFloat(row["クリック率（CTR）"] || "0"),
-          cost: Number.parseInt(row["費用"]?.replace(/[¥,]/g, "") || "0"),
+          cost,
         })
+
+        const date = new Date(dateStr)
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+        if (!stats.monthlySummary[monthKey]) {
+          stats.monthlySummary[monthKey] = { impressions: 0, clicks: 0, applications: 0, cost: 0 }
+        }
+        stats.monthlySummary[monthKey].impressions += impressions
+        stats.monthlySummary[monthKey].clicks += clicks
+        stats.monthlySummary[monthKey].applications += applications
+        stats.monthlySummary[monthKey].cost += cost
       })
+
+      const months = Object.keys(stats.monthlySummary).sort()
+      if (months.length >= 2) {
+        const curr = stats.monthlySummary[months[months.length - 1]]
+        const prev = stats.monthlySummary[months[months.length - 2]]
+        stats.momComparison = {
+          impressions: prev.impressions ? ((curr.impressions - prev.impressions) / prev.impressions) * 100 : null,
+          clicks: prev.clicks ? ((curr.clicks - prev.clicks) / prev.clicks) * 100 : null,
+          applications: prev.applications ? ((curr.applications - prev.applications) / prev.applications) * 100 : null,
+          cost: prev.cost ? ((curr.cost - prev.cost) / prev.cost) * 100 : null,
+        }
+      }
     }
 
     // 平均値の計算
